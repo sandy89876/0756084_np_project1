@@ -10,22 +10,34 @@ char *convert(const string & s)
 
 // |n
 bool is_stdout_numbered_pipe(string token){
-    if(token.find("|") == 0 && token.length() > 1) return true;
+    if(token.find("|") == 0 && token.size() > 1) return true;
     return false;
 }
 
 // !n
 bool is_stderr_numbered_pipe(string token){
-    if(token.find("!") == 0 && token.length() > 1) return true;
+    if(token.find("!") == 0 && token.size() > 1) return true;
     return false;
 }
 
 bool is_ordinary_pipe(string token){
-    if(token == "|") return true;
+	
+	if(token=="|") return true;
+
+    //if(token.compare(0,1,"|") == 0) return true;
     return false;
 }
 
 bool is_output_to_file(string token){
-    if(token == ">") return true;
+    if(token.compare(">") == 0) return true;
     return false;
+}
+
+
+bool check(string token){
+	if(token.find("|") == 0 && token.size() > 1)return true;
+	else if(token.find("!") == 0 && token.size() > 1)return true;
+	else if(token=="|") return true;
+	else if (token.compare(">") == 0) return true;
+	else return false;
 }

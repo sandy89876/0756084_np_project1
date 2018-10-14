@@ -40,7 +40,7 @@ vector<string> split_line(string input,char* delimeter);
 set<string> get_known_command_set();
 void initial_setting();
 void set_pipe_array(int* pipe_array);
-void parse_cmd(vector<string> tokens);
+void parse_cmd();
 void set_current_cmd_pipe_out(command cmd);
 void write_file(string fileName);
 void execute_cmd(command cmd);
@@ -48,6 +48,7 @@ void execute_cmd(command cmd);
 set<string> command_set;
 int line_count = 0;
 deque<command> current_job_queue;
+vector<string> tokens;
 
 class compare{
 public:
@@ -74,7 +75,7 @@ int main(int argc, const char * argv[]) {
             return 0;
         }
         
-        vector<string> tokens = split_line(inputLine, " ");
+        tokens = split_line(inputLine, " ");
         
         if(inputLine.find("setenv") != string::npos){
             setenv(tokens[1].c_str(), tokens[2].c_str(), 1);
@@ -83,7 +84,7 @@ int main(int argc, const char * argv[]) {
         }else if(inputLine.find("printenv") != string::npos){
             cout << getenv(tokens[1].c_str()) << endl;
         }else{
-            parse_cmd(tokens);
+            parse_cmd();
         }
         
         for(deque<command>::iterator it = current_job_queue.begin(); it != current_job_queue.end(); it++){
@@ -220,9 +221,10 @@ void set_pipe_array(int* pipe_array){
     }
 }
 
-void parse_cmd(vector<string> tokens){
-    for (vector<string>::iterator it = tokens.begin(); it != tokens.end(); ++it){
-        if(*it == ">"){
+void parse_cmd(){
+    for(int i = 0; i < tokens.size(); i++){
+        cout << tokens[i] << endl;
+        if(tokens[i] == ">"){
             
             //push {> and *it+1} into current_job
             //pipe previous comm output to this input
@@ -235,16 +237,16 @@ void parse_cmd(vector<string> tokens){
             
             //push > into current_job_queue
             command cur_comm;
-            cur_comm.name = *it;
+            cur_comm.name = tokens[i];
             vector<string> parameter;
-            parameter.push_back(*++it);
+            parameter.push_back(tokens[++i]);
             cur_comm.arguments = parameter;
             current_job_queue.push_back(cur_comm);
             
-        }else if(is_stdout_numbered_pipe(*it)){
+        }else if(is_stdout_numbered_pipe(tokens[i])){
             // |n current_job pop_back and insert into unhandled_job(queue)
             
-            int n = stoi((*it).substr(1,(*it).length()));
+            int n = stoi(tokens[i].substr(1,tokens[i].length()));
             n += line_count;
             command *last_cmd = &current_job_queue.back();
             last_cmd->before_numbered_pipe = true;
@@ -254,10 +256,10 @@ void parse_cmd(vector<string> tokens){
             set_pipe_array(last_cmd->pipe_arr);
             
             unhandled_jobs.push(*last_cmd);
-        }else if(is_stderr_numbered_pipe(*it)){
+        }else if(is_stderr_numbered_pipe(tokens[i])){
             // !n current_job pop_back and insert into unhandled_job(queue)
             
-            int n = stoi((*it).substr(1,(*it).length()));
+            int n = stoi(tokens[i].substr(1,tokens[i].length()));
             n += line_count;
             command *last_cmd = &current_job_queue.back();
             last_cmd->before_numbered_pipe = true;
@@ -268,28 +270,28 @@ void parse_cmd(vector<string> tokens){
             
             unhandled_jobs.push(*last_cmd);
             
-        }else if(*it == "|"){
+        }else if(tokens[i] == "|"){
             command *last_cmd = &current_job_queue.back();
             last_cmd->need_pipe_out = true;
             set_pipe_array(last_cmd->pipe_arr);
             
-        }else if(command_set.count(*it) != 0){
+        }else if(command_set.count(tokens[i]) != 0){
             //*it is known command
             command cur_comm;
-            cur_comm.name = *it;
+            cur_comm.name = tokens[i];
             
             //push all parameters
             vector<string> parameter;
-            while(!is_ordinary_pipe(*(it+1)) && !is_output_to_file(*(it+1)) && !is_stdout_numbered_pipe(*(it+1)) && !is_stderr_numbered_pipe(*(it+1)) && (it+1) != tokens.end()){
-                cout << *it;
-                parameter.push_back(*++it);
-                if(it == tokens.end()) break;
+            while((i+1) != tokens.size() && !is_ordinary_pipe(tokens[i+1]) && !is_output_to_file(tokens[i+1]) && !is_stdout_numbered_pipe(tokens[i+1]) && !is_stderr_numbered_pipe(tokens[i+1])){
+                cout << tokens[i];
+                parameter.push_back(tokens[++i]);
+                if(i == tokens.size()) break;
             }
             cur_comm.arguments = parameter;
             current_job_queue.push_back(cur_comm);
         }else{
             //Unknown command
-            cout << "Unknown command: [" << *it << "]."<< endl;
+            cout << "Unknown command: [" << tokens[i] << "]."<< endl;
         }
     }
 }
