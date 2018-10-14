@@ -7,16 +7,20 @@
 //
 
 #include <iostream>
-#include <string>
-#include <stdlib.h>
+
 #include <fstream>
 #include <dirent.h>
 #include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <algorithm>
 
 #include <vector>
 #include <set>
 #include <deque>
 #include <queue>
+
+#include "utility.h"
 
 #define bin_path "/Users/huyuxuan/Desktop/np_project_1/np_project_1/bin"
 
@@ -40,14 +44,6 @@ void parse_cmd(vector<string> tokens);
 void set_current_cmd_pipe_out(command cmd);
 void write_file(string fileName);
 void execute_cmd(command cmd);
-void callback(command cmd);
-
-//utility function
-bool is_stderr_numbered_pipe(string token);
-bool is_stdout_numbered_pipe(string token);
-bool is_ordinary_pipe(string token);
-bool is_output_to_file(string token);
-char *convert(const std::string & s);
 
 set<string> command_set;
 int line_count = 0;
@@ -60,8 +56,6 @@ public:
     };
 };
 priority_queue<command,vector<command>,compare> unhandled_jobs;
-
-
 
 
 int main(int argc, const char * argv[]) {
@@ -84,6 +78,7 @@ int main(int argc, const char * argv[]) {
         
         if(inputLine.find("setenv") != string::npos){
             setenv(tokens[1].c_str(), tokens[2].c_str(), 1);
+            command_set = get_known_command_set();
             
         }else if(inputLine.find("printenv") != string::npos){
             cout << getenv(tokens[1].c_str()) << endl;
@@ -208,9 +203,6 @@ void write_file(string fileName){
     }
 }
 
-
-
-
 void set_current_cmd_pipe_out(command cmd){
     if(cmd.output_type == "stdout"){
         close(cmd.pipe_arr[0]);
@@ -303,11 +295,18 @@ void parse_cmd(vector<string> tokens){
 }
 
 set<string> get_known_command_set(){
+
     set<string> result;
     DIR *pDIR;
     struct dirent *entry;
-    if(pDIR = opendir(bin_path)){
-        cout << "known commands:";
+    const char* env_path = getenv("PATH");
+    char* path;
+    path = strdup(env_path);
+    char* tmppath;
+    tmppath = strtok(path,":");
+    cout << "known commands:";
+    
+    if(pDIR = opendir(tmppath)){
         while(entry = readdir(pDIR)){
             //ignore . .. .DS_store
             if( entry->d_name[0] != '.'){
@@ -317,6 +316,7 @@ set<string> get_known_command_set(){
         }
         closedir(pDIR);
     }
+    
     result.insert(">");
     cout << endl;
     return result;
@@ -335,39 +335,10 @@ vector<string> split_line(string input,char* delimeter){
     return result;
 }
 
-// |n
-bool is_stdout_numbered_pipe(string token){
-    if(token.find("|") == 0 && token.length() > 1) return true;
-    return false;
-}
-
-// !n
-bool is_stderr_numbered_pipe(string token){
-    if(token.find("!") == 0 && token.length() > 1) return true;
-    return false;
-}
-
-bool is_ordinary_pipe(string token){
-    if(token == "|") return true;
-    return false;
-}
-
-bool is_output_to_file(string token){
-    if(token == ">") return true;
-    return false;
-}
-
 void initial_setting(){
     setenv("PATH", "bin:.", 1);
     command_set = get_known_command_set();
     
-}
-
-char *convert(const std::string & s)
-{
-    char *pc = new char[s.size()+1];
-    std::strcpy(pc, s.c_str());
-    return pc;
 }
 
 void execute_cmd(command cmd){
