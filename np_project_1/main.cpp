@@ -22,8 +22,6 @@
 
 #include "utility.h"
 
-#define bin_path "/Users/huyuxuan/Desktop/np_project_1/np_project_1/bin"
-
 using namespace std;
 
 struct command{
@@ -42,7 +40,7 @@ void initial_setting();
 void set_pipe_array(int* pipe_array);
 void parse_cmd();
 void set_current_cmd_pipe_out(command cmd);
-void write_file(string fileName);
+void write_file(command cmd);
 void execute_cmd(command cmd);
 
 set<string> command_set;
@@ -57,8 +55,6 @@ public:
     };
 };
 priority_queue<command,vector<command>,compare> unhandled_jobs;
-
-int cnt=1;
 
 
 int main(int argc, const char * argv[]) {
@@ -89,193 +85,75 @@ int main(int argc, const char * argv[]) {
             parse_cmd();
         }
         
-        /*
-        for(int i = 0; i < current_job_queue.size(); i++){
-            command cur_comm = current_job_queue[i];
-
-            if(!cur_comm.before_numbered_pipe){
-                set_pipe_array(cur_comm.pipe_arr);
-            }
-
-            if(i == 0){
-                vector<int*> unhandled_pipeNum_arr;
-                
-                int p_id = fork();
-                if(p_id < 0) cout << "can't fork process" << endl;
-                else if(p_id == 0){
-                    //get data from unhandled command
-                    while(unhandled_jobs.size() > 0 && unhandled_jobs.top().exe_line_num == line_count){
-                        command unhand_cmd = unhandled_jobs.top();
-                        unhandled_pipeNum_arr.push_back(unhand_cmd.pipe_arr);
-                        unhandled_jobs.pop();
-                        cout << "child pop unhandled cmd:" << unhand_cmd.name << unhand_cmd.exe_line_num << "and dup" << endl;
-                        close(unhand_cmd.pipe_arr[1]);
-                        dup2(unhand_cmd.pipe_arr[0], STDIN_FILENO);
-                        close(unhand_cmd.pipe_arr[0]);
-                    }
-                    
-                    //set current command pipe_out
-                    if(cur_comm.need_pipe_out){
-                        set_current_cmd_pipe_out(cur_comm);
-                    }
-                   
-                    execute_cmd(cur_comm);
-                   
-                }else{
-                    while(unhandled_jobs.size() > 0 && unhandled_jobs.top().exe_line_num == line_count){
-                        command unhand_cmd = unhandled_jobs.top();
-                        unhandled_pipeNum_arr.push_back(unhand_cmd.pipe_arr);
-                        unhandled_jobs.pop();
-                        cout << "parent pop unhandled cmd:" << unhand_cmd.name << unhand_cmd.exe_line_num  << endl;
-                    }
-
-                    //wait for cmd executing finish
-                    int status;
-                    waitpid(p_id, &status, WUNTRACED);
-                    cout << "child process end" << endl;
-
-                    string fn = to_string(cnt)+".txt";
-                    FILE *fp = fopen(fn.c_str(),"w");
-                    char buffer[] = {'H','e','y'};
-                    if(!fp){
-                        perror("parent open file failed");
-                    }else{
-                        fwrite(buffer,1,sizeof(buffer),fp);
-                    }
-                    fclose(fp);
-                    cnt++;
-                    
-                    //close all finished unhandled_command pipe
-                    while(unhandled_pipeNum_arr.size() > 0){
-                        int *tmp = unhandled_pipeNum_arr.back();
-                        cout << "close finished unhandled_command pipe " << tmp[0] << " and " << tmp[1] << endl;
-                        close(tmp[0]);
-                        close(tmp[1]);
-                        unhandled_pipeNum_arr.pop_back();
-                    }
-                }
-            }else{
-                //this is not first job
-                int p_id = fork();
-                if(p_id < 0) cout << "can't fork process" << endl;
-                else if(p_id == 0){
-                    //if previous command need pipe_out, dup this cmd's pipe_in to previous cmd's pipe_out
-                    //if this cmd need pipe_out, dup this cmd's pipe_out to stdout
-                    //execute
-                    
-                    command prev_cmd = current_job_queue[i-1];
-                    if(prev_cmd.need_pipe_out){
-                        cout << cur_comm.name << "set_cmd_pipe_in" << endl;
-                        close(prev_cmd.pipe_arr[1]);
-                        dup2(prev_cmd.pipe_arr[0], STDIN_FILENO);
-                        close(prev_cmd.pipe_arr[0]);
-                    }
-                    
-                    //set current command pipe_out
-                    if(cur_comm.need_pipe_out){
-                        set_current_cmd_pipe_out(cur_comm);
-                    }
-                    
-                    if(is_output_to_file(cur_comm.name)){
-                        write_file(cur_comm.arguments[0]);
-                    }else{
-                        execute_cmd(cur_comm);
-                    }
-                       
-                }else{
-                    
-                    //wait for cmd executing finish
-                    int status;
-                    waitpid(p_id, &status, WUNTRACED);
-                    cout << "child process end" << endl;
-
-                    string fn = to_string(cnt)+".txt";
-                    FILE *fp = fopen(fn.c_str(),"w");
-                    char buffer[] = {'H','e','y'};
-                    if(!fp){
-                        perror("parent open file failed");
-                    }else{
-                        fwrite(buffer,1,sizeof(buffer),fp);
-                    }
-                    fclose(fp);
-                    cnt++;
-                }
-            }
-            //execute finish
-            if(!cur_comm.need_pipe_out){
-                //if this job doesn't need to pipe out,close pipe
-                cout << "close this job pipe" << endl;
-                close(cur_comm.pipe_arr[0]);
-                close(cur_comm.pipe_arr[1]);
-            }
-            //close previous job pipe
-            if(i != 0){
-                cout << "close previous job pipe" << endl;
-                command prev_cmd = current_job_queue[i-1];
-                close(prev_cmd.pipe_arr[0]);
-                close(prev_cmd.pipe_arr[1]);
-            }
-        }
-        */
-        
         for(deque<command>::iterator it = current_job_queue.begin(); it != current_job_queue.end(); it++){
-            //pipe fork exec
-            
             //if this command hasn't create pipe before,create one
             if(!it->before_numbered_pipe){
                 set_pipe_array(it->pipe_arr);
             }
-            
-            if(it == current_job_queue.begin()){
-                //record pipe num of unhandled cmd
-                vector<int*> unhandled_pipeNum_arr;
-                
-                int p_id = fork();
-                if(p_id < 0) cout << "can't fork process" << endl;
-                else if(p_id == 0){
-                    //get data from unhandled command
+            int p_id = fork();
+            if(p_id < 0) cout << "can't fork process" << endl;
+            else if(p_id == 0){
+
+                //child process
+                if(it == current_job_queue.begin()){
+                    //this is the first job, check unhandled job
+                    vector<int*> unhandled_pipeNum_arr;
                     while(unhandled_jobs.size() > 0 && unhandled_jobs.top().exe_line_num == line_count){
                         command unhand_cmd = unhandled_jobs.top();
                         unhandled_pipeNum_arr.push_back(unhand_cmd.pipe_arr);
                         unhandled_jobs.pop();
-                        cout << "child pop unhandled cmd:" << unhand_cmd.name << unhand_cmd.exe_line_num << "and dup" << endl;
+                        cout << "child pop unhandled cmd:" << unhand_cmd.name << unhand_cmd.exe_line_num << " and dup" << endl;
                         close(unhand_cmd.pipe_arr[1]);
                         dup2(unhand_cmd.pipe_arr[0], STDIN_FILENO);
                         close(unhand_cmd.pipe_arr[0]);
                     }
-                    cout << "execute job " << (*it).name << endl;
-                    
-                    //set current command pipe_out
-                    if((*it).need_pipe_out){
-                        set_current_cmd_pipe_out(*it);
+                }else{
+                    //this is not the first job, check previous cmd
+                    //get data from previous cmd
+                    if((it-1)->need_pipe_out){
+                        cout << (*it).name << " read from " << (it-1)->pipe_arr[0] << endl;
+                        close((it-1)->pipe_arr[1]);
+                        dup2((it-1)->pipe_arr[0], STDIN_FILENO);
+                        close((it-1)->pipe_arr[0]);
                     }
-                   
+                }
+
+                //set current command pipe_out
+                if((*it).need_pipe_out){
+                    set_current_cmd_pipe_out(*it);
+                }
+               
+                if(is_output_to_file((*it).name)){
+                    write_file(*it);
+                    continue;
+                }else{
                     execute_cmd(*it);
                     exit(1);
-                   
-                }else{
+                }
+
+            }else{
+                //parent process, wait for child end
+
+                //cout <<  "before wait" << p_id << endl;
+
+                //if need input pipe and it has been opened, close it.
+                if(it != current_job_queue.begin() && (it-1)->need_pipe_out){
+                    close((it-1)->pipe_arr[0]);
+                    close((it-1)->pipe_arr[1]);
+                }
+                int status;
+                waitpid(p_id, &status,0);
+                cout << "child process " << p_id <<" end with status"<< status << endl;
+
+                if(it == current_job_queue.begin()){
+                    //record all finished unhandled_command pipe
+                    vector<int*> unhandled_pipeNum_arr;
                     while(unhandled_jobs.size() > 0 && unhandled_jobs.top().exe_line_num == line_count){
                         command unhand_cmd = unhandled_jobs.top();
                         unhandled_pipeNum_arr.push_back(unhand_cmd.pipe_arr);
                         unhandled_jobs.pop();
                         cout << "parent pop unhandled cmd:" << unhand_cmd.name << unhand_cmd.exe_line_num  << endl;
                     }
-                    //wait for cmd executing finish
-                    cout <<  "before wait" << p_id << endl;
-                    int status;
-                    waitpid(p_id, &status, WUNTRACED);
-                    cout << "child process" << p_id <<"end with status"<< status << endl;
-
-                    string fn = to_string(cnt)+".txt";
-                    FILE *fp = fopen(fn.c_str(),"w");
-                    char buffer[] = {'H','e','y'};
-                    if(!fp){
-                        perror("parent open file failed");
-                    }else{
-                        fwrite(buffer,1,sizeof(buffer),fp);
-                    }
-                    fclose(fp);
-                    cnt++;
 
                     //close all finished unhandled_command pipe
                     while(unhandled_pipeNum_arr.size() > 0){
@@ -286,93 +164,52 @@ int main(int argc, const char * argv[]) {
                         unhandled_pipeNum_arr.pop_back();
                     }
                 }
-            }
-            else{
-                //this is not first job
-                int p_id = fork();
-                if(p_id < 0) cout << "can't fork process" << endl;
-                else if(p_id == 0){
-                    //if previous command need pipe_out, dup this cmd's pipe_in to previous cmd's pipe_out
-                    //if this cmd need pipe_out, dup this cmd's pipe_out to stdout
-                    //execute
-                    cout << "execute job " << (*it).name << endl;
-
-                    if((it-1)->need_pipe_out){
-                        cout << (*it).name << " set_cmd_pipe_in" << endl;
-                        close((it-1)->pipe_arr[1]);
-                        dup2((it-1)->pipe_arr[0], STDIN_FILENO);
-                        close((it-1)->pipe_arr[0]);
-                    }
-                    
-                    //set current command pipe_out
-                    if((*it).need_pipe_out){
-                        set_current_cmd_pipe_out(*it);
-                    }
-                    
-                    if(is_output_to_file((*it).name)){
-                        write_file((*it).arguments[0]);
-                    }else{
-                        execute_cmd(*it);
-                        exit(1);
-                    }
-                       
-                }else{
-                    //wait for cmd executing finish
-                    cout <<  "before wait" << p_id << endl;
-                    int status;
-                    waitpid(p_id, &status, WUNTRACED);
-                    cout << "child process" << p_id <<"end with status"<< status << endl;
-
-                    string fn = to_string(cnt)+".txt";
-                    FILE *fp = fopen(fn.c_str(),"w");
-                    char buffer[] = {'H','e','y'};
-                    if(!fp){
-                        perror("parent open file failed");
-                    }else{
-                        fwrite(buffer,1,sizeof(buffer),fp);
-                    }
-                    fclose(fp);
-                    cnt++;
-                }
+                
             }
             
-
             //execute finish
             if(!it->need_pipe_out){
                 //if this job doesn't need to pipe out,close pipe
-                cout << "close this job pipe" << endl;
+                
                 close(it->pipe_arr[0]);
                 close(it->pipe_arr[1]);
+                cout << "close this job pipe" << endl;
             }
+            /*
             //close previous job pipe
             if(it != current_job_queue.begin()){
-                cout << "close previous job pipe" << endl;
+                
                 command prev_cmd = *(it-1);
                 close((it-1)->pipe_arr[0]);
                 close((it-1)->pipe_arr[1]);
-            }
-            
+                //cout << "close previous job pipe" << endl;
+            }*/
         }
         
         current_job_queue.clear();
-        
+        cin.clear();
         cout << "% ";
     }
     return 0;
 }
 
-void write_file(string fileName){
+void write_file(command cmd){
+    flush(cout);
+    string fileName = cmd.arguments[0]; 
     FILE *fp = fopen(fileName.c_str(),"w");
     
     if(fp == NULL) cout << "open file " << fileName << " error" << endl;
     else{
         int fp_num = fileno(fp);
-        dup2(fp_num, STDOUT_FILENO); // write stdout to file
+        close(cmd.pipe_arr[1]);
+        dup2(fp_num, STDOUT_FILENO);
+        close(fp_num);
     }
+    fclose(fp);
 }
 
 void set_current_cmd_pipe_out(command cmd){
-    cout << cmd.name << " set_current_cmd_pipe_out" << endl;
+    cout << cmd.name << " pipe to " << cmd.pipe_arr[1] << endl;
     close(cmd.pipe_arr[0]);
     dup2(cmd.pipe_arr[1], STDOUT_FILENO);
     if(cmd.output_type == "both"){
