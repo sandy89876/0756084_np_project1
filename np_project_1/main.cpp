@@ -125,12 +125,11 @@ int main(int argc, const char * argv[]) {
                
                 if(is_output_to_file((*it).name)){
                     write_file(*it);
-                    continue;
                 }else{
-                    execute_cmd(*it);
-                    exit(1);
+                    execute_cmd(*it);    
                 }
 
+                exit(1);
             }else{
                 //parent process, wait for child end
 
@@ -194,7 +193,7 @@ int main(int argc, const char * argv[]) {
 }
 
 void write_file(command cmd){
-    flush(cout);
+
     string fileName = cmd.arguments[0]; 
     FILE *fp = fopen(fileName.c_str(),"w");
     
@@ -204,6 +203,11 @@ void write_file(command cmd){
         close(cmd.pipe_arr[1]);
         dup2(fp_num, STDOUT_FILENO);
         close(fp_num);
+        //read from stdin and output tp stdout
+        string input;
+        while(getline(cin,input)){
+            cout << input << endl;
+        }
     }
     fclose(fp);
 }
