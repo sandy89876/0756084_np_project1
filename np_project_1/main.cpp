@@ -31,7 +31,7 @@ struct command{
     bool need_pipe_out = false;
     int pipe_arr[2]={0,1};
     int exe_line_num = 0;
-    string output_type;//stdout or both(stdout.stderr)
+    string output_type="stdout";//stdout or both(stdout.stderr)
 };
 
 vector<string> split_line(string input,char* delimeter);
@@ -140,9 +140,6 @@ int main(int argc, const char * argv[]) {
                     close((it-1)->pipe_arr[0]);
                     close((it-1)->pipe_arr[1]);
                 }
-                int status;
-                waitpid(p_id, &status,0);
-                cout << "child process " << p_id <<" end with status"<< status << endl;
 
                 if(it == current_job_queue.begin()){
                     //record all finished unhandled_command pipe
@@ -163,6 +160,12 @@ int main(int argc, const char * argv[]) {
                         unhandled_pipeNum_arr.pop_back();
                     }
                 }
+                
+                int status;
+                waitpid(p_id, &status,0);
+                cout << "child process " << p_id <<" end with status"<< status << endl;
+
+                
                 
             }
             
@@ -193,7 +196,6 @@ int main(int argc, const char * argv[]) {
 }
 
 void write_file(command cmd){
-
     string fileName = cmd.arguments[0]; 
     FILE *fp = fopen(fileName.c_str(),"w");
     
@@ -239,7 +241,6 @@ void parse_cmd(){
             //set previous job need pipe out
             command *prev_cmd = &current_job_queue.back();
             prev_cmd->need_pipe_out = true;
-            prev_cmd->output_type = "stdout";
             
             //push > into current_job_queue
             command cur_comm;
@@ -258,7 +259,6 @@ void parse_cmd(){
             last_cmd->before_numbered_pipe = true;
             last_cmd->exe_line_num = n;
             last_cmd->need_pipe_out = true;
-            last_cmd->output_type = "stdout";
             set_pipe_array(last_cmd->pipe_arr);
             
             unhandled_jobs.push(*last_cmd);
