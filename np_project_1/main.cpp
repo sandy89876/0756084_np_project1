@@ -32,6 +32,8 @@ struct command{
     int pipe_arr[2]={0,1};
     int exe_line_num = 0;
     string output_type="stdout";//stdout or both(stdout.stderr)
+    bool is_write_file = false;
+    string write_file_name;
 };
 
 struct unhandled_pipe_obj{
@@ -50,9 +52,9 @@ void initial_setting();
 void set_pipe_array(int* pipe_array);
 void parse_cmd();
 void set_current_cmd_pipe_out(command cmd);
-void write_file(command cmd);
 void execute_cmd(command cmd);
 bool check_and_set_same_pipe_out(int exe_line_num,int* pipe_array);
+void set_write_file_output(string fileName);
 
 
 set<string> command_set;
@@ -92,56 +94,50 @@ int main(int argc, const char * argv[]) {
         
         for(deque<command>::iterator it = current_job_queue.begin(); it != current_job_queue.end(); it++){
             //if this command hasn't create pipe before,create one
-            if(!it->before_numbered_pipe){
+            if(!it->before_numbered_pipe && !it->is_write_file){
                 set_pipe_array(it->pipe_arr);
             }
             int p_id = fork();
             if(p_id < 0) cout << "can't fork process" << endl;
             else if(p_id == 0){
-
                 //child process
                 if(it == current_job_queue.begin()){
-
                     // this is first job
                     // check if unhandled_pipe_obj_set has same exe_line_num
                     for (set<unhandled_pipe_obj>::iterator it=unhandled_pipe_obj_set.begin(); it!=unhandled_pipe_obj_set.end(); ++it){
                         if(it->exe_line_num == line_count){
-                            cout << "child dup "<< it->pipe_arr[0] << " to STDIN"<<endl;
+                            //cout << "child dup "<< it->pipe_arr[0] << " to STDIN"<<endl;
                             close(it->pipe_arr[1]);
                             dup2(it->pipe_arr[0], STDIN_FILENO);
                             close(it->pipe_arr[0]);
                         }
                     }
-                   
-
                 }else{
                     //this is not the first job, check previous cmd
                     //get data from previous cmd
                     if((it-1)->need_pipe_out){
-                        cout << "child dup "<<(it-1)->pipe_arr[0] << " to STDIN" << endl;
+                        //cout << "child dup "<<(it-1)->pipe_arr[0] << " to STDIN" << endl;
                         close((it-1)->pipe_arr[1]);
                         dup2((it-1)->pipe_arr[0], STDIN_FILENO);
                         close((it-1)->pipe_arr[0]);
                     }
                 }
 
-                //set current command pipe_out
-                if((*it).need_pipe_out){
-                    set_current_cmd_pipe_out(*it);
-                }
-                
-                if(is_output_to_file((*it).name)){
-                    write_file(*it);
+                if(it->is_write_file){
+                    set_write_file_output(it->write_file_name);
                 }else{
-                    execute_cmd(*it);    
+                    if((*it).need_pipe_out){
+                        set_current_cmd_pipe_out(*it);
+                    }
                 }
+                execute_cmd(*it);
 
                 exit(1);
             }else{
                 
                 //if need input pipe and it has been opened, close it.
                 if(it != current_job_queue.begin() && (it-1)->need_pipe_out){
-                    cout << "parent close " << (it-1)->pipe_arr[0] << " and " << (it-1)->pipe_arr[1] << endl;
+                    //cout << "parent close " << (it-1)->pipe_arr[0] << " and " << (it-1)->pipe_arr[1] << endl;
                     close((it-1)->pipe_arr[0]);
                     close((it-1)->pipe_arr[1]);
                 }
@@ -149,7 +145,7 @@ int main(int argc, const char * argv[]) {
                 //close unhandled pipe
                 for (set<unhandled_pipe_obj>::iterator it=unhandled_pipe_obj_set.begin(); it!=unhandled_pipe_obj_set.end(); ++it){
                     if(it->exe_line_num == line_count){
-                        cout << "parent close "<< it->pipe_arr[0] << " and " << it->pipe_arr[1] <<endl;
+                        //cout << "parent close "<< it->pipe_arr[0] << " and " << it->pipe_arr[1] <<endl;
                         close(it->pipe_arr[1]);
                         close(it->pipe_arr[0]);
                     }
@@ -164,10 +160,10 @@ int main(int argc, const char * argv[]) {
             //execute finish
             if(!it->need_pipe_out ){
                 //if this job doesn't need to pipe out,close pipe
-                cout << "parent close " << it->pipe_arr[0] << " and " << it->pipe_arr[1] << endl;
+                //cout << "parent close " << it->pipe_arr[0] << " and " << it->pipe_arr[1] << endl;
                 close(it->pipe_arr[0]);
                 close(it->pipe_arr[1]);
-                cout << "close this job pipe" << endl;
+                //cout << "close this job pipe" << endl;
             }
             /*
             //close previous job pipe
@@ -182,33 +178,21 @@ int main(int argc, const char * argv[]) {
         }
         
         current_job_queue.clear();
-        cin.clear();
+
         cout << "% ";
     }
     return 0;
 }
 
-void write_file(command cmd){
-    string fileName = cmd.arguments[0]; 
+void set_write_file_output(string fileName){
     FILE *fp = fopen(fileName.c_str(),"w");
-    
-    if(fp == NULL) cout << "open file " << fileName << " error" << endl;
-    else{
-        int fp_num = fileno(fp);
-        close(cmd.pipe_arr[1]);
-        dup2(fp_num, STDOUT_FILENO);
-        close(fp_num);
-        //read from stdin and output tp stdout
-        string input;
-        while(getline(cin,input)){
-            cout << input << endl;
-        }
-    }
-    fclose(fp);
+    int fp_num = fileno(fp);
+    dup2(fp_num, STDOUT_FILENO);
+    close(fp_num);
 }
 
 void set_current_cmd_pipe_out(command cmd){
-    cout << cmd.name << " pipe to " << cmd.pipe_arr[1] << endl;
+    //cout << cmd.name << " pipe to " << cmd.pipe_arr[1] << endl;
     close(cmd.pipe_arr[0]);
     dup2(cmd.pipe_arr[1], STDOUT_FILENO);
     if(cmd.output_type == "both"){
@@ -227,22 +211,14 @@ void set_pipe_array(int* pipe_array){
 void parse_cmd(){
     for(int i = 0; i < tokens.size(); i++){
         if(tokens[i] == ">"){
-            
-            //push {> and *it+1} into current_job
-            //pipe previous comm output to this input
-            //execute cmd, when cmd=='>', write file
-            
+               
             //set previous job need pipe out
             command *prev_cmd = &current_job_queue.back();
             prev_cmd->need_pipe_out = true;
-            
-            //push > into current_job_queue
-            command cur_comm;
-            cur_comm.name = tokens[i];
-            vector<string> parameter;
-            parameter.push_back(tokens[++i]);
-            cur_comm.arguments = parameter;
-            current_job_queue.push_back(cur_comm);
+
+            //set previous job need to write file
+            prev_cmd->is_write_file = true;
+            prev_cmd->write_file_name = tokens[++i];
             
         }else if(is_stdout_numbered_pipe(tokens[i])){
             // |n insert unhandled_pipe_obj{pipe_array, exe_line_num} into unhandled_pipe_arr_set
@@ -264,7 +240,7 @@ void parse_cmd(){
                 unhandled_pipe_obj_set.insert(new_unhandled_pipe_obj);
             }
 
-            cout << "last_cmd set pipe array " << last_cmd->pipe_arr[0] << " " << last_cmd->pipe_arr[1] << endl;
+            //cout << "last_cmd set pipe array " << last_cmd->pipe_arr[0] << " " << last_cmd->pipe_arr[1] << endl;
             
             
         }else if(is_stderr_numbered_pipe(tokens[i])){
@@ -288,13 +264,13 @@ void parse_cmd(){
                 unhandled_pipe_obj_set.insert(new_unhandled_pipe_obj);
             }
 
-            cout << "last_cmd set pipe array " << last_cmd->pipe_arr[0] << " " << last_cmd->pipe_arr[1] << endl;
+            //cout << "last_cmd set pipe array " << last_cmd->pipe_arr[0] << " " << last_cmd->pipe_arr[1] << endl;
             
         }else if(tokens[i] == "|"){
             command *last_cmd = &current_job_queue.back();
             last_cmd->need_pipe_out = true;
             set_pipe_array(last_cmd->pipe_arr);
-            cout << "last_cmd set pipe array " << last_cmd->pipe_arr[0] << " " << last_cmd->pipe_arr[1] << endl;
+            //cout << "last_cmd set pipe array " << last_cmd->pipe_arr[0] << " " << last_cmd->pipe_arr[1] << endl;
             
         }else if(command_set.count(tokens[i]) != 0){
             //*it is known command
@@ -304,7 +280,7 @@ void parse_cmd(){
             //push all parameters
             vector<string> parameter;
             while((i+1) != tokens.size() && !is_ordinary_pipe(tokens[i+1]) && !is_output_to_file(tokens[i+1]) && !is_stdout_numbered_pipe(tokens[i+1]) && !is_stderr_numbered_pipe(tokens[i+1])){
-                cout << tokens[i];
+                //cout << tokens[i];
                 parameter.push_back(tokens[++i]);
                 if(i == tokens.size()) break;
             }
@@ -380,7 +356,6 @@ void execute_cmd(command cmd){
     char **arg = &vc_char[0];
     
     if(execvp(arg[0], arg) < 0)puts("cmdChild : exec failed");
-    
 }
 
 bool check_and_set_same_pipe_out(int exe_line_num,int* pipe_array){
