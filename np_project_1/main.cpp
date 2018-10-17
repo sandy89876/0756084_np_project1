@@ -165,7 +165,7 @@ int main(int argc, const char * argv[]) {
                 close(it->pipe_arr[1]);
                 //cout << "close this job pipe" << endl;
             }
-            /*
+            
             //close previous job pipe
             if(it != current_job_queue.begin()){
                 
@@ -173,7 +173,7 @@ int main(int argc, const char * argv[]) {
                 close((it-1)->pipe_arr[0]);
                 close((it-1)->pipe_arr[1]);
                 //cout << "close previous job pipe" << endl;
-            }*/
+            }
 
         }
         
@@ -269,7 +269,7 @@ void parse_cmd(){
         }else if(tokens[i] == "|"){
             command *last_cmd = &current_job_queue.back();
             last_cmd->need_pipe_out = true;
-            set_pipe_array(last_cmd->pipe_arr);
+            //set_pipe_array(last_cmd->pipe_arr);
             //cout << "last_cmd set pipe array " << last_cmd->pipe_arr[0] << " " << last_cmd->pipe_arr[1] << endl;
             
         }else if(command_set.count(tokens[i]) != 0){
