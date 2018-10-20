@@ -56,12 +56,12 @@ void execute_cmd(command cmd);
 bool check_and_set_same_pipe_out(int exe_line_num,int* pipe_array);
 void set_write_file_output(string fileName);
 
-
 set<string> command_set;
 int line_count = 0;
 deque<command> current_job_queue;
 vector<string> tokens;
 set<unhandled_pipe_obj> unhandled_pipe_obj_set;
+set<int> p_id_table;
 
 int main(int argc, const char * argv[]) {
     string inputLine;
@@ -97,9 +97,13 @@ int main(int argc, const char * argv[]) {
             if(!it->before_numbered_pipe && !it->is_write_file){
                 set_pipe_array(it->pipe_arr);
             }
-            int p_id = fork();
-            if(p_id < 0) cout << "can't fork process" << endl;
-            else if(p_id == 0){
+
+            signal(SIGCHLD, childHandler);
+
+            int p_id;
+            while((p_id = fork()) < 0) usleep(1000);
+            if(p_id == 0){
+
                 //child process
                 if(it == current_job_queue.begin()){
                     // this is first job
@@ -134,6 +138,9 @@ int main(int argc, const char * argv[]) {
 
                 exit(1);
             }else{
+                //add p_id into table
+                p_id_table.insert(p_id);
+                
                 
                 //if need input pipe and it has been opened, close it.
                 if(it != current_job_queue.begin() && (it-1)->need_pipe_out){
@@ -142,37 +149,46 @@ int main(int argc, const char * argv[]) {
                     close((it-1)->pipe_arr[1]);
                 }
 
+                
                 //close unhandled pipe
-                for (set<unhandled_pipe_obj>::iterator it=unhandled_pipe_obj_set.begin(); it!=unhandled_pipe_obj_set.end(); ++it){
-                    if(it->exe_line_num == line_count){
+                for (set<unhandled_pipe_obj>::iterator unhand_it=unhandled_pipe_obj_set.begin(); unhand_it!=unhandled_pipe_obj_set.end(); ++unhand_it){
+                    if(unhand_it->exe_line_num == line_count){
                         //cout << "parent close "<< it->pipe_arr[0] << " and " << it->pipe_arr[1] <<endl;
-                        close(it->pipe_arr[1]);
-                        close(it->pipe_arr[0]);
+                        close(unhand_it->pipe_arr[1]);
+                        close(unhand_it->pipe_arr[0]);
                     }
                 }
 
-                //parent process, wait for child end
-                int status;
-                waitpid(p_id, &status,0);              
+                //execute finish
+                if(!it->need_pipe_out ){
+                    //if this job doesn't need to pipe out,close pipe
+                    //cout << "parent close " << it->pipe_arr[0] << " and " << it->pipe_arr[1] << endl;
+                    close(it->pipe_arr[0]);
+                    close(it->pipe_arr[1]);
+                    //cout << "close this job pipe" << endl;
+                }
+                
+                //close previous job pipe
+                if(it != current_job_queue.begin()){
+                    
+                    command prev_cmd = *(it-1);
+                    close((it-1)->pipe_arr[0]);
+                    close((it-1)->pipe_arr[1]);
+                    //cout << "close previous job pipe" << endl;
+                }
                 
             }
-            
-            //execute finish
-            if(!it->need_pipe_out ){
-                //if this job doesn't need to pipe out,close pipe
-                //cout << "parent close " << it->pipe_arr[0] << " and " << it->pipe_arr[1] << endl;
-                close(it->pipe_arr[0]);
-                close(it->pipe_arr[1]);
-                //cout << "close this job pipe" << endl;
-            }
-            
-            //close previous job pipe
-            if(it != current_job_queue.begin()){
-                
-                command prev_cmd = *(it-1);
-                close((it-1)->pipe_arr[0]);
-                close((it-1)->pipe_arr[1]);
-                //cout << "close previous job pipe" << endl;
+
+            if(!current_job_queue.back().before_numbered_pipe){
+                for(set<int>::iterator it = p_id_table.begin(); it != p_id_table.end(); ++it){
+                    
+                    int status;
+                    waitpid(*it, &status, 0);
+
+                    //wait完 delete from p_id_table
+                    p_id_table.erase(*it);
+
+                }
             }
 
         }
@@ -202,7 +218,6 @@ void set_current_cmd_pipe_out(command cmd){
 }
 
 void set_pipe_array(int* pipe_array){
-
     if(pipe(pipe_array) == -1){
         cout << "can't create pipe" << endl;
     }
