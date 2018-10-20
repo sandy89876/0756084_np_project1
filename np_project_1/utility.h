@@ -30,3 +30,8 @@ bool is_output_to_file(string token){
     if(token.compare(">") == 0) return true;
     return false;
 }
+
+void childHandler(int signo){
+    int status;
+    while(waitpid(-1, &status, WNOHANG) > 0){}
+}
