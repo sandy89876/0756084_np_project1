@@ -130,7 +130,7 @@ int main(int argc, const char * argv[]) {
                 if(it->is_write_file){
                     set_write_file_output(it->write_file_name);
                 }else{
-                    if((*it).need_pipe_out){
+                    if(it->need_pipe_out){
                         set_current_cmd_pipe_out(*it);
                     }
                 }
@@ -179,14 +179,14 @@ int main(int argc, const char * argv[]) {
                 
             }
 
-            if(!current_job_queue.back().before_numbered_pipe){
-                for(set<int>::iterator it = p_id_table.begin(); it != p_id_table.end(); ++it){
+            if((it+1) == current_job_queue.end() && !current_job_queue.back().before_numbered_pipe){
+                for(set<int>::iterator s_it = p_id_table.begin(); s_it != p_id_table.end(); ++s_it){
                     
                     int status;
-                    waitpid(*it, &status, 0);
+                    waitpid(*s_it, &status, 0);
 
                     //wait完 delete from p_id_table
-                    p_id_table.erase(*it);
+                    p_id_table.erase(*s_it);
 
                 }
             }
